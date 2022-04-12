@@ -272,4 +272,104 @@ def plot_rocs_QKmedians_compare(background, signal, n, colors, latent_dims, titl
     #plt.show()
 
     plt.savefig(f'{save_dir}/ROC_Kmedians_QC_compare_500B_400S_ALL.pdf', dpi = fig.dpi, bbox_inches='tight')
+    
+def parse_tpr_window(string):
+
+    string = string.split(',')
+    s1 = string[0].split('.')
+    s1 = s1[1]
+    s2 = string[1].split('.')
+    s2 = s2[1].split(']')
+    s2 = s2[0]
+    
+    return s1, s2
+    
+def plot_roc_analysis(input_q, input_c, ids, xlabel, ylabel, plot='auc', title=None, legend_loc='best', save_dir=None, ix=None):
+    numbers = list(range(len(ids)))
+    print(numbers)
+    # quantum data and error
+    data_q = [i[0] for i in input_q]
+    err_q = [i[1] for i in input_q]
+    # classical data and error
+    data_c = [i[0] for i in input_c]
+    err_c = [i[1] for i in input_c]
+    
+    fig = plt.figure(figsize=(10,8))
+    plt.errorbar(numbers, data_q, yerr=err_q, label='Quantum',
+            linestyle='None', marker='o', capsize=3, color='coral')
+    plt.errorbar(numbers, data_c, yerr=err_c, label='Classic',
+            linestyle='None', marker='v', capsize=3, color='forestgreen')
+    # plt.plot(numbers, auc_q, label='quantum', linewidth=1.5, color=colors[0])
+    # plt.plot(numbers, auc_c, label='classical', linewidth=1.5, color=colors[1])
+    plt.xticks(numbers, ids, fontsize=13)
+    if plot=='auc': plt.ylim(0.7, 1.0)
+    else: plt.ylim(0.0, 0.1)
+    plt.yticks(fontsize=13)
+    plt.xlabel(xlabel, fontsize=15, loc='center')
+    plt.ylabel(ylabel, fontsize=15, loc='center')
+    #plt.yscale('log')
+    if title:
+        plt.title(f'TPR window: {title}', fontsize=20)
+    leg = plt.legend(loc=f'{legend_loc}', fancybox=True, frameon=True, prop={"size":10})
+    plt.grid(True)
+    #plt.show()
+    if title:
+        l1, l2 = parse_tpr_window(title)
+        plt.savefig(f'{save_dir}/{ylabel}_vs_{xlabel}_{ix}_TPR{l1}{l2}.pdf', dpi = fig.dpi, bbox_inches='tight')
+    else: plt.savefig(f'{save_dir}/{ylabel}_vs_{xlabel}_{ix}.pdf', dpi = fig.dpi, bbox_inches='tight')
+    
+def plot_auc_fpr(background, signal, n, ids, xlabel, tpr_window= [0.5, 0.7], title=None, colors=['C11', 'C12'], legend_loc='best', ix=None, save_dir=None):
+    
+    auc_q=[]; auc_c=[]
+    fpr_q=[]; fpr_c=[]
+    for i in range(n):
+        dq, dc = background[i]
+        dqs, dcs = signal[i]
+        
+        metric_q = u.get_metric(np.sum(dq,axis=1), np.sum(dqs,axis=1), tpr_window=tpr_window)
+        metric_c = u.get_metric(np.sum(dc,axis=1), np.sum(dcs,axis=1), tpr_window=tpr_window)
+        
+        auc_q.append(metric_q[0])
+        auc_c.append(metric_c[0])
+        
+        fpr_q.append(metric_q[1])
+        fpr_c.append(metric_c[1])
+        
+        # # quantum data
+        # data_q = get_roc_data(np.sum(dq,axis=1), np.sum(dqs,axis=1))
+        # # classic data
+        # data_c = get_roc_data(np.sum(dc,axis=1), np.sum(dcs,axis=1))
+        # auc_q.append(data_q[2])
+        # auc_c.append(data_c[2])
+    
+    plot_roc_analysis(auc_q, auc_c, ids=ids, xlabel=xlabel, ylabel='AUC', save_dir=save_dir, ix=ix)
+    plot_roc_analysis(fpr_q, fpr_c, ids=ids, xlabel=xlabel, ylabel='FPR', plot='fpr', title=str(tpr_window), save_dir=save_dir, ix=ix)
+
+def calculate_ROCs(runs, n_samples_train, identifiers, lat_dim=None, qcd_test_size=500, n_samples_signal=500, br_na=None, signal_name='RSGraviton_WW_NA', mass='3.5'):
+    """
+        run_i and lat_dim - identify the latent space dimension
+    """
+    #cluster_labels=[]; centroids=[]; data=[]
+    background=[]; signal=[]
+    for i in range(len(runs)):
+        #cluster_labels = np.load(f'cluster_label_{runs[i]}_Durr_DI_AE_{n_samples_train[i]}.npy')
+        if lat_dim:
+            centroids = np.load(f'/eos/user/e/epuljak/private/epuljak/PhD/TN/QIBO/search_algorithms/notebooks/results_qmedians/centroids/centroids_{runs[i]}_Durr_DI_AE_{str(n_samples_train[i])}_lat{lat_dim}.npy')
+        else: centroids = np.load(f'/eos/user/e/epuljak/private/epuljak/PhD/TN/QIBO/search_algorithms/notebooks/results_qmedians/centroids/centroids_{runs[i]}_Durr_DI_AE_{str(n_samples_train[i])}.npy')
+    
+        data_qcd, data_s, centroids_c = u.load_data_and_centroids_c(runs[i], n_samples_train=n_samples_train[i], qcd_test_size=qcd_test_size, n_samples_test=n_samples_signal, signal_name=signal_name, mass=mass, br_na=br_na)
+        
+        #plot_centroids_compare(centroids, centroids_c, f'/eos/user/e/epuljak/private/epuljak/PhD/TN/QIBO/search_algorithms/notebooks/results_qmedians/centroids/trainsizestudy_lat4_try2', f'lat{lat_dim}_ntrain{str(n_samples_train[i])}', clusters=2)
+        
+        _, q_distances = qkmed.find_nearest_neighbour_DI(data_qcd, centroids)
+        _, q_distances_s = qkmed.find_nearest_neighbour_DI(data_s,centroids)
+        _, c_distances = cf.find_nearest_neighbour_classic(data_qcd,centroids_c)
+        _, c_distances_s = cf.find_nearest_neighbour_classic(data_s,centroids_c)
+        
+        background.append([q_distances, c_distances])
+        signal.append([q_distances_s, c_distances_s])
+    
+    #plot_rocs_QKmedians_compare(background, signal, legend_loc='lower left', ix=id_fig, n=len(runs), colors=np.array(['C'+str(j+1)for j in range(len(runs))]), ids=identifiers, title=title, save_dir=save_fig_dir)
+    #plot_train_size_impact(background, signal, ids=identifiers, title='AUC vs Train Size', n=len(runs), ix=id_fig, save_dir=save_fig_dir)
+    return background, signal
 
