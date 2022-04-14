@@ -3,8 +3,8 @@ import matplotlib.pyplot as plt
 import matplotlib
 import math
 import time
-from multiprocessing import Pool
 from multiprocessing.pool import ThreadPool
+from time import time as ts
 from qibo.models import Circuit
 from qibo import gates
 from qiskit.visualization import plot_histogram
@@ -70,16 +70,18 @@ def geometric_median(X, eps=1e-5):
         print("For this class there is no points assigned!")
         return
     y = np.mean(X, 0)
+    #print(f'First median is: {y}')
     z=0
     while True:
         D = find_distance_matrix_quantum(X, [y])
-        nonzeros = (D != 0)[:, 0]
+        nonzeros = (D != 0)[:, 0] #which points are not equal to y
         Dinv = 1 / D[nonzeros]
         Dinv_sum = np.sum(Dinv)
         W = Dinv / Dinv_sum
         T1 = np.sum(W * X[nonzeros], 0) #scaled sum of all points
         
         num_zeros = len(X) - np.sum(nonzeros) # number of points = y
+        #print(f'Size of inputs: {X.shape}, and there is 0: {num_zeros}')
         if num_zeros == 0: #then next median is scaled sum of all points
             y1 = T1
         elif num_zeros == len(X):
@@ -93,8 +95,10 @@ def geometric_median(X, eps=1e-5):
         
         # converge condition    
         dist_y_y1,_ = distc.DistCalc_DI(y, y1)
+        #print(f'Distance between 2 medians: {dist_y_y1}')
         if dist_y_y1 < eps:
             return y1
+        #print(f'Next median is: {y1}')
         y = y1 # next median is
         z+=1
         
@@ -119,6 +123,7 @@ def SA_find_centroids(points, cluster_labels, clusters=2):
     k = points.shape[1]
     epsilon = 1e-1
     for j in range(clusters):
+        #print(f'Searching centroids for cluster {j}')
         points_class_i = points[cluster_labels==j]
         median = np.mean(points, axis=0)
         min_dist = sum_distances(points_class_i, median)
@@ -152,6 +157,7 @@ def proc(point):
     return S_i
 
 def find_centroids(points, cluster_labels, clusters=2):
+    #print("Find new centroids")
     """
     Find new cluster centroids by calculating the mean of data points assigned to specific cluster.
     Args:
@@ -201,13 +207,16 @@ def find_nearest_neighbour(points, centroids):
     n = points.shape[0]
     num_features = points.shape[1]
     k = centroids.shape[0] # number of centroids
+    #cluster_label = np.zeros(n) # assignment to new centroids
     cluster_label=[]
     distances=[]
     
     for i in range(n): # through all training samples
         dist=[]
+        #print(f'Point for distance: {points[i,:]}')
         for j in range(k): # distance of each training example to each centroid
-            temp_dist, _ = distc.DistCalc(points[i,:], centroids[j,:], shots_n=10000)
+            #print(f'Centroid for distance: {centroids[j,:]}')
+            temp_dist, _ = distc.DistCalc(points[i,:], centroids[j,:], shots_n=10000) # returning back one number for all latent dimensions!
             dist.append(temp_dist)
         cluster_index = m.duerr_hoyer_algo(dist)
         #cluster_index = np.argmin(dist)
@@ -233,16 +242,19 @@ def find_nearest_neighbour_AmplE(points, centroids):
     n = points.shape[0]
     num_features = points.shape[1]
     k = centroids.shape[0] # number of centroids
+    #cluster_label = np.zeros(n) # assignment to new centroids
     cluster_label=[]
     distances=[]
     
     for i in range(n): # through all training samples
         dist=[]
+        #print(f'Point for distance: {points[i,:]}')
         for j in range(k): # distance of each training example to each centroid
-            temp_dist, _ = distc.DistCalc_AmplE(points[i,:], centroids[j,:], shots_n=10000)
+            #print(f'Centroid for distance: {centroids[j,:]}')
+            temp_dist, _ = distc.DistCalc_AmplE(points[i,:], centroids[j,:], shots_n=10000) # returning back one number for all latent dimensions!
             dist.append(temp_dist)
-        cluster_index = m.duerr_hoyer_algo(dist)
-        #cluster_index = np.argmin(dist)
+        #cluster_index = m.duerr_hoyer_algo(dist)
+        cluster_index = np.argmin(dist)
         cluster_label.append(cluster_index)
         distances.append(dist)
     print("Find Cluster Labels ---> %s seconds ---" % (time.time() - start_time))
@@ -265,16 +277,19 @@ def find_nearest_neighbour_DI(points, centroids):
     n = points.shape[0]
     num_features = points.shape[1]
     k = centroids.shape[0] # number of centroids
+    #cluster_label = np.zeros(n) # assignment to new centroids
     cluster_label=[]
     distances=[]
     
     for i in range(n): # through all training samples
         dist=[]
+        #print(f'Point for distance: {points[i,:]}')
         for j in range(k): # distance of each training example to each centroid
-            temp_dist, _ = distc.DistCalc_DI(points[i,:], centroids[j,:], shots_n=10000)
+            #print(f'Centroid for distance: {centroids[j,:]}')
+            temp_dist, _ = distc.DistCalc_DI(points[i,:], centroids[j,:], shots_n=10000) # returning back one number for all latent dimensions!
             dist.append(temp_dist)
-        cluster_index = m.duerr_hoyer_algo(dist)
-        #cluster_index = np.argmin(dist)
+        #cluster_index = m.duerr_hoyer_algo(dist)
+        cluster_index = np.argmin(dist)
         cluster_label.append(cluster_index)
         distances.append(dist)
     print("Find Cluster Labels ---> %s seconds ---" % (time.time() - start_time))
