@@ -1,94 +1,60 @@
-""" Implementation of KMedians from @hounslow at GitHub """
+""" Modification of KMedians from github account @hounslow  """
 
 import numpy as np
 import scripts.util as u
-from scipy.spatial import distance
-
-def euclidean_dist_squared(a, b):
-    
-    #np.sum(a**2,axis=1) + np.sum(b**2, axis=1) - 2 * np.dot(a,b.T)
-    # sum1 = np.sum(a**2)
-    # sum2 = np.sum(b**2, axis=1)
-    #return np.sum(a**2) + np.sum(b**2, axis=1) - 2 * np.dot(a,b.T)
-    return np.sum(a**2, axis=1)[:,None] + np.sum(b**2, axis=1)[None] - 2 * np.dot(a,b.T)
 
 class Kmedians:
 
-    def __init__(self, k):
+    def __init__(self, k, tolerance=1.e-3):
         self.k = k
-        self.medians = []
+        self.centroids = []
         self.loss = []
-        self.tolerance=1e-3
+        self.tolerance= tolerance
 
-    def fit(self, X):
-        N, D = X.shape
-        y = np.ones(N)
-
-        # medians = np.zeros((self.k, D))
-        # for kk in range(self.k):
-        #     i = np.random.randint(N)
-        #     medians[kk] = X[i]
-        # indexes = np.random.randint(X.shape[0], size=self.k)
-        # medians = X[indexes]
-        #np.save(f'/eos/user/e/epuljak/private/epuljak/PhD/TN/QIBO/search_algorithms/notebooks/results_qmedians/centroids/centroids_random_start_24032022_1_Durr_DI_AE_500.npy', medians)
-        medians=np.load('/eos/user/e/epuljak/private/epuljak/PhD/TN/QIBO/search_algorithms/notebooks/results_qmedians/centroids/centroids_random_start_24032022_1_Durr_DI_AE_500.npy')
-        iteration=0
+    def fit(self, data):
+        # init centroids
+        indexes = np.random.randint(data.shape[0], size=self.k)
+        centroids = data[indexes]
+        centroids = np.array(centroids, dtype=np.float)
         
-        #new_medians = np.zeros((self.k, D))
-        while True:
-            y_old = y
-
-            # Compute euclidean distance to each mean
-            #dist2 = euclidean_dist_squared(X, medians)
-            
-            ### CHECK DIFF EUCLIDIAN DISTANCE IMPLEMENTATIONSS
-            dist2=[]
-            for i in range(N): # through all training samples
+        iteration=0
+        iter_additional=0; 
+        while True:            
+            dist=[]
+            for i in range(data.shape[0]): # through all training samples
                 d=[]
                 for j in range(self.k): # distance of each training example to each centroid
-                    temp_dist = u.euclidean_dist_squared(X[i,:], medians[j,:]) # returning back one number for all latent dimensions!
-                    d.append(temp_dist)
-                dist2.append(d)
-            dist2 = np.array(dist2)
-            dist2[np.isnan(dist2)] = np.inf
-            y = np.argmin(dist2, axis=1)
-            # Update medians
-            for kk in range(self.k):
-                # calculate mean of all samples assigned to cluster
-                # to calculate the new cluster center
-                if X[y == kk].shape[0] > 0:
-                    medians[kk] = np.median(X[y==kk], axis=0)
-
-            changes = np.sum(y != y_old)
-            self.loss.append(np.linalg.norm(y - y_old))
+                    d.append(u.euclidean_dist(data[i,:], centroids[j,:]))
+                dist.append(d)
+            dist = np.array(dist)
+            dist[np.isnan(dist)] = np.inf
+            cluster_labels = np.argmin(dist, axis=1)
             
-            # if np.linalg.norm(medians - new_medians) < self.tolerance:
-            #     medians=new_medians
-            #     print(f"KMedians converged after {iteration+1} iterations.")
-            #     break
-            #print('Running K-means, changes in cluster assignment = {}'.format(changes))
-
-            # Stop if no point changed cluster
-            if changes == 0:
-                print(f"KMedians converged after {iteration+1} iterations.")
-                break
-            #medians=new_medians
+            # Update centroids
+            new_centroids = []
+            for kk in range(self.k):
+                if data[cluster_labels == kk].shape[0] > 0:
+                    new_centroids.append(np.array(np.median(data[cluster_labels==kk], axis=0), dtype=np.float))
+                else:
+                    new_centroids[kk]=medians[kk]
+            new_centroids = np.array(new_centroids)
+            
+            self.loss.append(np.linalg.norm(np.subtract(centroids, new_centroids)))
+            
+            if np.linalg.norm(np.subtract(centroids, new_centroids)) < self.tolerance:
+                centroids = new_centroids.copy()
+                iter_additional+=1; 
+                if iter_additional == 5: # additional 5 epoch to be sure
+                    print(f"KMedians converged after {iteration+1} iterations.")
+                    break
+                    
+            centroids=new_centroids
             iteration+=1
 
-        self.medians = medians
+        self.centroids = centroids
 
-    def predict(self, X):
-        medians = self.medians
-        dist2 = euclidean_dist_squared(X, medians)
-        dist2[np.isnan(dist2)] = np.inf
-        return np.argmin(dist2, axis=1), dist2
-
-    def error(self, X):
-        N, D = X.shape
-        medians = self.medians
-        closest_median_indexes = self.predict(X)
-
-        error = 0
-        for i in range(medians.shape[0]):
-            error += np.sum(euclidean_dist_squared(X[closest_median_indexes==i], medians[[i]]))
-        return error
+    def predict(self, data):
+        centroids = self.centroids
+        dist = u.euclidean_dist(data, centroids)
+        dist[np.isnan(dist)] = np.inf
+        return np.argmin(dist, axis=1), dist

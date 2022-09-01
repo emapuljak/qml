@@ -18,8 +18,11 @@ def iam_operator(n):
         imaginary_I[ix, ix] = 1j
         
     qc.add(gates.Unitary(imaginary_I, 0))
+    # apply H-gate to last qubit
     qc.add(gates.H(n-1))
+    # apply multi-controlled toffoli gate to last qubit controlled by the ones before it (less significant)
     qc.add(gates.X(n-1).controlled_by(*list(range(0,n-1))))
+    # apply H-gate to last qubit
     qc.add(gates.H(n-1))
     qc.add(gates.Unitary(imaginary_I, 0))
     
@@ -34,6 +37,7 @@ def grover_qc(qc, n, oracle, n_indices_flip):
     
     if n_indices_flip:
         r_i = int(math.floor(np.pi/4*np.sqrt(2**n/n_indices_flip)))
+    #elif n_indices_flip == 2**n: r_i = 0
     else: r_i = 0
     
     for _ in range(r_i):

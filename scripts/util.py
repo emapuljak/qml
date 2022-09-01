@@ -8,6 +8,7 @@ sys.path.append('../../')
 import utils as u
 import scripts.minimization as m
 import math
+import matplotlib.pyplot as plt
 
 def calc_norm(a, b):
     return math.sqrt(np.sum(a**2) + np.sum(b**2))
@@ -15,8 +16,17 @@ def calc_norm(a, b):
 def normalize(data):
     return np.array(data / np.linalg.norm(data), dtype=np.float32)
 
-def euclidean_dist_squared(a, b):
+def euclidean_dist(a, b):
     return np.linalg.norm(a-b)
+
+
+def show_figure(fig):
+    # See https://github.com/Qiskit/qiskit-terra/issues/1682
+    new_fig = plt.figure()
+    new_mngr = new_fig.canvas.manager
+    new_mngr.canvas.figure = fig
+    fig.set_canvas(new_mngr.canvas)
+    plt.show(fig)
 
 def create_gate(x: np.ndarray, num_qubits: int) -> ControlledGate:
     # from qiskit implementation github 

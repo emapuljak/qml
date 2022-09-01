@@ -47,6 +47,8 @@ def get_amplitudes_from_qiskit(a_norm, b_norm, n_qubits):
     qr_phi = QuantumRegister(n_qubits+1, "phi") # size always 1
     #cr = ClassicalRegister(1, "cr")
 
+    # Creating Quantum Circuit called "qc" involving your Quantum Register "qr"
+    # and your Classical Register "cr"
     qc = QuantumCircuit(anc, qr_psi, qr_phi, name="k_means")
 
     qc.append(psi, qr_psi)
@@ -129,6 +131,7 @@ def DistCalc(a, b, shots_n=10000):
     a_norm = prepare_input(a, n_qubits, a.shape[0])
     b_norm = prepare_input(b, n_qubits, b.shape[0])
     
+    #print(f'Euclidian distance for centroid: {np.linalg.norm(a_norm-b_norm)}')
     amplitudes = get_amplitudes_from_qiskit(a_norm, b_norm, n_qubits)
     list_psi_qubits = list(range(1,n_qubits+1+1))
     list_phi_qubits = list(range(n_qubits+1+1, n_qubits+1+n_qubits+1+1))
@@ -155,14 +158,17 @@ def DistCalc(a, b, shots_n=10000):
     with tf.device("/GPU:0"):
         result = qc.execute(initial_state=amplitudes, nshots=shots_n)
     counts = result.frequencies(binary=True)
-
+    #print(f'Result of distance circuit: {counts}')
     Z=2.0
-
+    # return overlap, searching for prob. of state 0
     overlap = 2*np.abs(counts['0']/shots_n - 0.5)
-    
+    #print(np.abs(counts['0']/shots_n - 0.5))
+    #print(f'Overlap: {overlap}')
+    #print("DistCalc ---> %s seconds ---" % (time.time() - start_time))
+    #print(f'Quantum distance for centroid: {overlap*2*Z}')
     return overlap*2*Z, qc
 
-def DistCalc_AmplE(a, b, shots_n=10000):
+def DistCalc_AmplE(a, b, device_name, shots_n=10000):
     """
     Args:
         a: numpy.ndarray of shape (1, num_features) - point in space
@@ -179,6 +185,7 @@ def DistCalc_AmplE(a, b, shots_n=10000):
     a_norm = normalize(a)
     b_norm = normalize(b)
     
+    #print(f'Euclidian distance for centroid: {np.linalg.norm(a_norm-b_norm)}')
     amplitudes, n_qubits_psi = get_amplitudes_from_qiskit_AmplE(a_norm, b_norm)
     
     #psi circuit
@@ -200,24 +207,28 @@ def DistCalc_AmplE(a, b, shots_n=10000):
         ).controlled_by(0))
     qc.add(gates.H(0))
     qc.add(gates.M(0)) # returing back one number!
-    with tf.device("/GPU:0"):
+    with tf.device(device_name):
         result = qc.execute(initial_state=amplitudes, nshots=shots_n)
     
     counts = result.frequencies(binary=True)
+    #print(f'Result of distance circuit: {counts}')
     Z=calc_Z(a_norm, b_norm)
-   
+    # return overlap, searching for prob. of state 0
     overlap = 2*np.abs(counts['0']/shots_n - 0.5)
-    
+    #print(np.abs(counts['0']/shots_n - 0.5))
+    #print(f'Overlap: {overlap}')
+    #print("DistCalc ---> %s seconds ---" % (time.time() - start_time))
+    #print(f'Quantum distance for centroid: {overlap*2*Z}')
     return overlap*2*Z, qc
 
 def pad_input(X):
     num_features = len(X)
-    if not float(np.log2(num_features*2)).is_integer():
+    if not float(np.log2(num_features)).is_integer():
         size_needed = pow(2, math.ceil(math.log(num_features)/math.log(2)))
         X = np.pad(X, (0, size_needed-num_features), "constant")
     return X
 
-def DistCalc_DI(a, b, shots_n=10000):
+def DistCalc_DI(a, b, device_name='/GPU:0', shots_n=10000):
     """ Distance calculation with destructive interference """
     num_features = len(a)
     norm = calc_norm(a, b)
@@ -228,13 +239,14 @@ def DistCalc_DI(a, b, shots_n=10000):
     b_norm = pad_input(b_norm)
     
     amplitudes = np.concatenate((a_norm, b_norm))
+    #print(np.array(amplitudes).shape)
     n_qubits = int(np.log2(len(amplitudes)))
     
     #QIBO
     qc = Circuit(n_qubits)
     qc.add(gates.H(0))
     qc.add(gates.M(0))
-    with tf.device("/GPU:0"):
+    with tf.device(device_name):
         result = qc.execute(initial_state=amplitudes, nshots=shots_n)
     counts = result.frequencies(binary=True)
     distance = norm*math.sqrt(2)*math.sqrt((counts['1']/shots_n))
