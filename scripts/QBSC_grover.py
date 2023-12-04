@@ -1,8 +1,3 @@
-import sys
-#sys.path.append('/eos/home-e/epuljak/private/epuljak')
-sys.path.append('../')
-sys.path.append('../../')
-
 from qiskit.visualization import plot_histogram, plot_bloch_multivector
 from qiskit.visualization.utils import _bloch_multivector_data
 from qiskit import QuantumCircuit, execute, Aer, transpile
@@ -27,19 +22,12 @@ def convert_to_FP(inputs, lat_dim):
     # step = max_dist/2**n_bits
     # inputs_fp = [i/step for i in inputs]
     
-    # from rig.type_casts import NumpyFloatToFixConverter, NumpyFixToFloatConverter
-    # n_bits=8
-    # converter = NumpyFloatToFixConverter(signed=False, n_bits=n_bits, n_frac=2)
-    # inputs_fp = converter(inputs)
-    
     n_frac=2
     n_bits=4
     min_value = 0.
     max_value = 2**n_bits - 1
-    print(max_value)
     # Scale and cast to appropriate int types
     vals = inputs * 2.0 ** n_frac
-    print(vals)
     # Saturate the values
     vals = np.clip(vals, min_value, max_value)
 
@@ -50,7 +38,6 @@ def basis_encoding_ampl(inputs, n_qubits):
     amplitudes = np.zeros(2**n_qubits)
     for i in inputs:
         amplitudes[i] = 1./math.sqrt(len(inputs))
-    print(amplitudes)
     return amplitudes
 
 def basis_encoding_stateprep(n_qubits, amplitudes):
@@ -261,7 +248,7 @@ def grover_algo(distances, lat_dim, n_shots=1024):
     #dist_fp, n_qubits_fp = convert_to_FP(distances, lat_dim) # convert to fixed-point
     dist_fp = distances
     n_qubits_fp = 4
-    print(dist_fp)
+
     # choose random threshold
     index_rand = np.random.choice(list(range(k))) # random index of reference state
     threshold = dist_fp[index_rand]
@@ -275,7 +262,6 @@ def grover_algo(distances, lat_dim, n_shots=1024):
     min_found=False
     measured_indices=[]
     while start_index > 0:
-        print(start_index)
         print(f'Current threshold: {threshold}')
         measured_indices.append(threshold)
         # create oracle
@@ -301,10 +287,7 @@ def grover_algo(distances, lat_dim, n_shots=1024):
         probs = counts.items()
         sorted_probs = dict(sorted(probs, key=lambda item: item[1], reverse=True))
         sorted_probs_keys = list(sorted_probs.keys())
-        
-        print(counts)
-        print(sorted_probs_keys)
-        
+                
         if sorted_probs_keys[0] == np.binary_repr(threshold, width=n_qubits_fp):
             threshold = int(sorted_probs_keys[0],2)
             min_found=True
